@@ -33,13 +33,23 @@ def norm_gamma(x,labels):
                   if j > i)
     return (mat_sum/m)/(c_var * p_var)
 
-def sillhouette(x,labels,distance):
+def sillhouette_euclidean(x,labels):
     sil = silhouette_score(
         X=x,
         labels=labels,
-        metric=distance
+        metric='euclidean'
     )
     return sil
+
+
+def sillhouette_cosine(x,labels):
+    sil = silhouette_score(
+        X=x,
+        labels=labels,
+        metric='cosine'
+    )
+    return sil
+
 
 def CH(x,labels):
     ch_score = calinski_harabasz_score(x,labels)
