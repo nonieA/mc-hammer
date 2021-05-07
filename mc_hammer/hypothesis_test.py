@@ -12,17 +12,14 @@ def hypothesis_test(q_list,q_method):
         x_val = q_list[-1]
         q_arr = np.sort(np.array(q_list))
         p_val = (np.where(q_arr == x_val)[0][0] + 1)/len(q_list)
-        if q_method == 'DB':
+        if q_method in ['DB','CVNN','SD_score','S_DBW']:
             if q_list[-1] == max(q_list):
-                return False
-            elif p_val <= 0.05:
-                return True
+                return 0.99
             else:
-                return False
+                return p_val
+
         else:
             if q_list[-1] == min(q_list):
-                return False
-            elif p_val >= 0.95:
-                return True
+                return 0.99
             else:
-                return False
+                return 1-p_val
