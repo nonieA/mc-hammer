@@ -4,12 +4,15 @@ import numpy as np
 from s_dbw import S_Dbw, SD
 from scipy.spatial import distance
 
-def mean_cluster_diam(dist, labels,k):
+def mean_cluster_diam(x, labels,k):
     k_ind = [ind for ind,i in enumerate(labels) if i == k ]
-    one_c = dist[k_ind]
-    one_c = one_c[:,k_ind]
-    diam = np.sum(one_c)/(len(k_ind)**2 - len(k_ind))
-    return(diam)
+    if len(k_ind) > 1:
+        x_c = x[k_ind,]
+        one_c = pairwise_distances(x_c)
+        diam = np.sum(one_c)/(len(k_ind)**2 - len(k_ind))
+    else:
+        diam = 0.0000000001
+    return diam
 
 def c_mat_maker(labels):
     c_mat = [(0 if i == j else 1 ) for i in labels for j in labels]
@@ -99,10 +102,9 @@ def DB(x,labels):
     return db_score
 
 def dunn(x,labels,centers):
-    dist = pairwise_distances(x)
     cen_dist = pairwise_distances(centers)
     min_dist = min(cen_dist[np.nonzero(cen_dist)])
-    max_diam = max([mean_cluster_diam(dist,labels,i) for i in np.unique(labels)])
+    max_diam = max([mean_cluster_diam(x,labels,i) for i in np.unique(labels)])
     return min_dist/max_diam
 
 def S_DBW(x,labels):
@@ -120,7 +122,7 @@ def IGP(x,labels):
     return(np.mean(igp_c))
 
 def BWC(x,labels,centers):
-    bwc_c = mean([bwc_k(x,labels,i,centers) for i in np.unique(labels)])
+    bwc_c = np.mean([bwc_k(x,labels,i,centers) for i in np.unique(labels)])
     return(bwc_c)
 
 def CVNN(x,labels):
@@ -130,7 +132,7 @@ def CVNN(x,labels):
     sep_range = [[ind_sep_clust(labels,dist,j,i) for i in range(nc)] for j in knn_range]
     sep_range = [np.mean(i)/max(i) for i in sep_range]
     sep = min(sep_range)
-    comp_list = [mean_cluster_diam(dist,labels,i) * 2 for i in range(nc)]
+    comp_list = [mean_cluster_diam(x,labels,i) * 2 for i in range(nc)]
     comp = np.mean(comp_list)/max(comp_list)
     return sep + comp
 

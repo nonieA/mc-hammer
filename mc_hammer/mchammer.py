@@ -51,3 +51,46 @@ if __name__ == '__main__':
     mch = mchammer()
     mch.get_null_distributions(test,'min_max',3)
     res_q = mch.get_q_scores(cluster_method='K_Means',k =2)
+    seperation = 0.1
+    noise = 0.1
+    k_test = [make_classification(
+        n_samples = 1000,
+        n_features = 10,
+        n_informative = int((10-10*noise)),
+        n_redundant = int(10*noise),
+        n_classes = 4,
+        n_clusters_per_class = 1,
+        class_sep = seperation,
+        random_state = i
+    )[0] for i in range(100)]
+
+    for ind,i in enumerate(k_test):
+        print(ind)
+        mch = mchammer()
+        mch.get_null_distributions(k_test[84],'pca_trans',100)
+        res_q = mch.get_q_scores(cluster_method='K_Means',k =4)
+        print(res_q)
+    x = k_test[84]
+    repeats = 100
+    null_dists = [pca_trans(x, i) for i in range(repeats)]
+    labels = [k_means(i,4) for i in null_dists]
+
+    q_methods = ['huberts_gamma', 'norm_gamma', 'sillhouette_euclidean', 'sillhouette_cosine', 'CH', 'DB',
+                 'dunn', 'S_Dbw', 'SD_score', 'IGP', 'BWC', 'CVNN']
+
+    q_dict = {}
+    for i in q_methods:
+        print(i)
+        res = []
+        if i in ['BWC', 'dunn']:
+            for j in range(len(labels)):
+                print(j)
+                res_small = eval(
+                    i + '(null_dists[' + str(j) + '],labels[' + str(j) + '][0],labels[' + str(j) + '][1])')
+                res.append(res_small)
+        else:
+            for j in range(len(labels)):
+                print(j)
+                res_small = eval(i + '(null_dists[' + str(j) + '],labels[' + str(j) + '][0])')
+                res.append(res_small)
+        q_dict[i] = res
