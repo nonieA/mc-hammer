@@ -42,7 +42,9 @@ def get_centers(theta,hyp,mult,dim,cos1st = True):
     coords = np.array(d_coords[:dim])
     return(coords)
 
-def generate_data(k,dim,sep,n,sd,se):
+def generate_data(k,dimx,sep,n,sd,se,noise):
+    dim = round(dimx*(1-noise))
+    noise_dim = dimx - dim
     if isinstance(sep,list) ==False:
         sep = [sep for i in range(k)]
     if isinstance(n,list) ==False:
@@ -88,7 +90,11 @@ def generate_data(k,dim,sep,n,sd,se):
         ce_d = get_centers(theta_y, side_ac, mult, dim,False)
         centers = [np.array([0]*dim),ce_b,ce_c,ce_d]
     blobs_full, labs_full = make_many_blobs(k, dim, n, sd, centers)
-    return blobs_full,labs_full
+    centers = np.array(centers)/blobs_full.max()
+    blobs_full = blobs_full/blobs_full.max()
+    noise_array = np.random.rand(sum(n),noise_dim)
+    blobs_full = np.append(blobs_full,noise_array, axis =1)
+    return blobs_full,labs_full,centers
 
 def plot_dims(dim1,dim2,blobs_full,labs_full):
     for i in range(max(labs_full) + 1):
@@ -103,3 +109,9 @@ if __name__ == '__main__':
     blobs_full,labs_full = generate_data(3,4,4,100,2,2)
     blobs_full, labs_full = generate_data(4, 2, 2, 100, 2, 2)
     plot_dims(0,1,blobs_full,labs_full)
+    dim1 = 0
+    dim2 = 1
+    for i in range(max(labs_full) + 1):
+        one_b = blobs_full[labs_full == i,:]
+        plt.scatter(one_b[:,dim1],one_b[:,dim2])
+    plt.scatter(centers[:,dim1],centers[:,dim2])

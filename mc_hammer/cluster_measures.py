@@ -38,7 +38,7 @@ def mean_center_dist(x,labels,centers):
     mean_list = [np.mean(centre_dist(x,labels,i,centers)) for i in range(len(centers))]
     return mean_list
 
-def max_center_dict(x,labels,centers):
+def max_center_dist(x,labels,centers):
     max_list = [max(centre_dist(x,labels,i,centers)) for i in range(len(centers))]
     return max_list
 
@@ -62,7 +62,7 @@ def radial_density1p(x,sd,ref_point):
     dens = len([i for i in dist_point if i <= sd])
     return dens
 
-def radial_desnsity(x,centers,labels,measure):
+def radial_density(x,centers,labels,measure):
     k = max(labels)
     cn = k-1
     sd = full_sd(x,labels)
