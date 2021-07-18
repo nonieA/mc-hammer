@@ -35,26 +35,58 @@ def full_sd(x,labels):
     return sd/max(labels)
 
 def mean_center_dist(x,labels,centers):
+    """
+    measure of compactness through mean distance for each point, to the center
+    :param x:
+    :param labels:
+    :param centers:
+    :return:
+    """
     mean_list = [np.mean(centre_dist(x,labels,i,centers)) for i in range(len(centers))]
     return mean_list
 
 def max_center_dist(x,labels,centers):
+    """
+    measure pf compactness, max distance between each point and cthe cluster center
+    :param x:
+    :param labels:
+    :param centers:
+    :return:
+    """
     max_list = [max(centre_dist(x,labels,i,centers)) for i in range(len(centers))]
     return max_list
 
 def max_diam(x,labels):
+    """
+    measure of compactness, max distance between points in a cluster
+    :param x:
+    :param labels:
+    :return:
+    """
     dist_list = [clust_dist(x,labels,i) for i in range(len(centers))]
     max_list = [i.max() for i in dist_list]
     return max_list
 
 def mean_max_diam(x,labels):
+    """
+    measure of compactness, mean of the max distance of each point to each other point
+    :param x:
+    :param labels:
+    :return:
+    """
     dist_list = [clust_dist(x, labels, i) for i in range(len(centers))]
     mean_list = [np.mean(np.apply_along_axis(max,1,i)) for i in dist_list]
     return mean_list
 
 def mean_all(x,labels):
+    """
+    measure of compactness mean distance of all points to all points
+    :param x:
+    :param labels:
+    :return:
+    """
     dist_list = [clust_dist(x, labels, i) for i in range(len(centers))]
-    mean_list = [mean_center_dist(i) for i in dist_list]
+    mean_list = [i.mean() for i in dist_list]
     return mean_list
 
 def radial_density1p(x,sd,ref_point):
@@ -63,6 +95,14 @@ def radial_density1p(x,sd,ref_point):
     return dens
 
 def radial_density(x,centers,labels,measure):
+    """
+    measure of compactness densitt from center ratio density inbetween clusters
+    :param x:
+    :param centers:
+    :param labels:
+    :param measure:
+    :return:
+    """
     k = max(labels)
     cn = k-1
     sd = full_sd(x,labels)
@@ -90,19 +130,38 @@ def radial_density(x,centers,labels,measure):
         return sum(dens_list)/(k*cn)
 
 def clust_center_dist(centers):
+
     return pairwise_distances(centers)
 
 def dataset_meancenter_dist(x,centers):
+    """
+    cluster seperation mean distance between cluster centers
+    :param x:
+    :param centers:
+    :return:
+    """
     d_center = x.mean(axis = 0)
     center_dist = [distance.euclidean(i,d_center) for i in centers]
     return center_dist
 
 def dataset_midpoint_dist(x,centers):
+    """
+    seperation, distance from cluster centers to dataset midpoint
+    :param x:
+    :param centers:
+    :return:
+    """
     d_center = np.array([(max(x[:,i]) + min(x[:,i]))/2 for i in range(x.shape[1])])
     center_dist = [distance.euclidean(i, d_center) for i in centers]
     return center_dist
 
 def scatter(x,labels):
+    """
+    seperation sd of cluster compared to sd of full dataset
+    :param x:
+    :param labels:
+    :return:
+    """
     sd = np.std(one_clust,0)
     sd_D = np.dot(sd.T,sd)**0.5
     sd_C = sum([clust_sd(x,labels,i) for i in range(max(labels)+1)])
@@ -110,6 +169,12 @@ def scatter(x,labels):
     return scat
 
 def cvnn_sep(x,labels):
+    """
+    seperation distances of based on points on cluster edges
+    :param x:
+    :param labels:
+    :return:
+    """
     nc = len(np.unique(labels))
     knn_range = range(3,round(len(labels)/(nc*3)))
     dist = pairwise_distances(x)
