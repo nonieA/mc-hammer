@@ -93,6 +93,12 @@ def generate_data(k,dimx,sep,n,sd,se,noise):
     centers = np.array(centers)/blobs_full.max()
     blobs_full = blobs_full/blobs_full.max()
     noise_array = np.random.rand(sum(n),noise_dim)
+    noise_cent_list = []
+    for i in np.unique(labs_full):
+        one_clust = noise_array[labs_full == i, :]
+        noise_cent_list.append(one_clust.mean(axis=0))
+    noise_cent_list = np.array(noise_cent_list)
+    centers = np.concatenate((centers,noise_cent_list),axis = 1)
     blobs_full = np.append(blobs_full,noise_array, axis =1)
     return blobs_full,labs_full,centers
 
