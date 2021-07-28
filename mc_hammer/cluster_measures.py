@@ -104,37 +104,37 @@ def radial_density(x,centers,labels,measure):
     :return:
     """
     k = max(labels)
-    cn = k-1
     sd = full_sd(x,labels)
     mid_point_list = [mid_points(centers,i) for i in range(max(labels) +1)]
     mid_point_list = [j for i in mid_point_list for j in i]
     centers_dense = [radial_density1p(x,sd,i)for i in centers]
     mid_point_dense = [radial_density1p(x,sd,i) for i in mid_point_list]
-    if measure == 'single_clusters_max':
+    if measure == 'single_cluster_max':
         dens_list = []
-        if k == 1:
-            return mid_point_dense[0]
-        else:
-            for i in range(k + 1):
-                mid_dense = max(mid_point_dense[i * k:(i + 1) * k])
+
+        for i in range(k + 1):
+            mid_dense = max(mid_point_dense[i * k:(i + 1) * k])
+            if centers_dense[i] == 0:
+                dens_list.append(0)
+            else:
                 dens_list.append((mid_dense / centers_dense[i]))
             return dens_list
     elif measure == 'single_cluster_mean':
-        if k == 1:
-            return mid_point_dense[0]
-        else:
-            dens_list = []
-            for i in range(k + 1):
-                mid_dense = np.mean(mid_point_dense[i * k:(i + 1) * k])
+        dens_list = []
+        for i in range(k + 1):
+            mid_dense = np.mean(mid_point_dense[i * k:(i + 1) * k])
+            if centers_dense[i] == 0:
+                dens_list.append(0)
+            else:
                 dens_list.append((mid_dense / centers_dense[i]))
-            return dens_list
+        return dens_list
     else:
-        if k == 1:
-            return mid_point_dense[0] / ((k+1) * k)
-        else:
-            dens_list = []
-            for i in range(max(labels) + 1):
-                mid_dense = max(mid_point_dense[i * k:(i + 1) * k])
+        dens_list = []
+        for i in range(max(labels) + 1):
+            mid_dense = max(mid_point_dense[i * k:(i + 1) * k])
+            if centers_dense[i] == 0:
+                dens_list.append(0)
+            else:
                 dens_list.append((mid_dense / centers_dense[i]))
             return sum(dens_list) / ((k+1) * k)
 
@@ -188,14 +188,16 @@ def cvnn_sep(x,labels):
     knn_range = range(3,round(len(labels)/(nc*3)))
     dist = pairwise_distances(x)
     sep_range = [[ind_sep_clust(labels, dist, j, i) for i in range(nc)] for j in knn_range]
-    return sep_range
+    sep_range = [np.mean(i)/max(i) for i in sep_range]
+    sep = min(sep_range)
+    return sep
 
 if __name__=='__main__':
     x = np.random.rand(100,3)
-    km = KMeans(n_clusters = 4).fit(x)
+    km = KMeans(n_clusters = 2).fit(x)
     labels = km.labels_
     centers = km.cluster_centers_
-    uni_dis = [np.random.rand(300,3) for j in range(100)]
+    uni_dis = [np.random.rand(300,2) for j in range(100)]
     uni_dis = {'x':uni_dis,
                'labs':[k_means(j,2) for j in uni_dis]}
     uni_dis = {
@@ -221,7 +223,7 @@ if __name__=='__main__':
             else:
                 res = eval(method + '(x,centers,labs,addit)')
             res_list.append(res)
-        return (res_list)
+
 
     method_list = ['cvnn_sep', 'scatter' ,'dataset_midpoint_dist', 'dataset_meancenter_dist','mean_center_dist','max_center_dist','max_diam','mean_max_diam','mean_all']
     for i in method_list:
@@ -231,36 +233,13 @@ if __name__=='__main__':
         get_metrics_results(uni_dis,'radial_density',addit=i)
 
     k = max(labels)
-    cn = k - 1
     sd = full_sd(x, labels)
     mid_point_list = [mid_points(centers, i) for i in range(max(labels) + 1)]
     mid_point_list = [j for i in mid_point_list for j in i]
     centers_dense = [radial_density1p(x, sd, i) for i in centers]
     mid_point_dense = [radial_density1p(x, sd, i) for i in mid_point_list]
-    if measure == 'single_clusters_max':
-        dens_list = []
-        if cn == 2:
-            return mid_point_dense[0]
-        else:
-            for i in range(k + 1):
-                mid_dense = max(mid_point_dense[i * k:(i + 1) * k])
-                dens_list.append((mid_dense / centers_dense[i]))
-            return dens_list
-    elif measure == 'single_cluster_mean':
-        if cn == 2:
-            return mid_point_dense[0]
-        else:
-            dens_list = []
-            for i in range(k + 1):
-                mid_dense = np.mean(mid_point_dense[i * k:(i + 1) * k])
-                dens_list.append((mid_dense / centers_dense[i]))
-            return dens_list
-    else:
-        if cn == 2:
-            return mid_point_dense[0] / ((k+1) * k)
-        else:
-            dens_list = []
-            for i in range(max(labels) + 1):
-                mid_dense = max(mid_point_dense[mid_point_dense[i * k:(i + 1) * k])
-                dens_list.append((mid_dense / centers_dense[i]))
-            return sum(dens_list) / ((k+1) * k)
+
+    nc = len(np.unique(labels))
+    knn_range = range(3,round(len(labels)/(nc*3)))
+    dist = pairwise_distances(x)
+    sep_range = [ind_sep_clust(labels, dist, 10, i) for i in range(nc)]
