@@ -1,7 +1,7 @@
 from mc_hammer.null_distributions import pca_trans, random_order, min_max
 from mc_hammer.clustering_algorithms import k_means,dbscan,spectral_clustering
 from mc_hammer.similarity_functions import huberts_gamma, norm_gamma, sillhouette_euclidean,sillhouette_cosine, CH, DB
-from mc_hammer.similarity_functions import dunn,S_Dbw,SD_score,IGP,BWC,CVNN
+from mc_hammer.similarity_functions import dunn,S_Dbw,SD_score,IGP,BWC,CVNN, dunn_min
 from mc_hammer.hypothesis_test import hypothesis_test
 import numpy as np
 
@@ -19,7 +19,7 @@ class mchammer():
     def get_q_scores(self,cluster_method,q_methods = 'all',k = None, eps = None,min_samples = None):
         if q_methods == 'all':
             q_methods = ['huberts_gamma', 'norm_gamma', 'sillhouette_euclidean','sillhouette_cosine', 'CH', 'DB',
-                         'dunn','S_Dbw','SD_score','IGP','BWC','CVNN']
+                         'dunn','S_Dbw','SD_score','IGP','BWC','CVNN','dunn_min']
         if cluster_method == 'K_Means':
             labels = [k_means(i,k) for i in self._null_dists]
         if cluster_method == 'DBSCAN':
