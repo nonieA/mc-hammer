@@ -2,7 +2,6 @@ import numpy as np
 from sklearn.cluster import KMeans
 from sklearn.metrics import pairwise_distances
 from scipy.spatial import distance
-from mc_hammer.similarity_functions import ind_sep_clust
 from mc_hammer.clustering_algorithms import k_means
 
 def clust_dist(x,labels,k):
@@ -34,6 +33,15 @@ def full_sd(x,labels):
     sd = (sum([clust_sd(x,labels,i) for  i in range(max(labels) +1)]))**0.5
     return sd/max(labels)
 
+def ind_sep_k(labels,arr,knn,c):
+    k_nearest_n = sorted(range(len(arr)), key= lambda x:arr[x])[1:knn +1]
+    ind_sep = sum([1 if labels[i] != c else 0 for i in k_nearest_n])/knn
+    return ind_sep
+
+def ind_sep_clust(labels,dist,knn,c):
+    labels_ind = [ind for ind, i in enumerate(labels) if i ==c]
+    sep_nc = sum([ind_sep_k(labels,dist[i],knn,c) for i in labels_ind])/len(labels_ind)
+    return sep_nc
 def mean_center_dist(x,labels,centers):
     """
     measure of compactness through mean distance for each point, to the center
