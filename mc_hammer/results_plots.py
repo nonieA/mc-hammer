@@ -5,6 +5,7 @@ import re
 import os
 import numpy as np
 from scipy.stats import spearmanr, skew, kurtosis
+import statsmodels.api as sm
 
 def df_edit(folder_name,file_name):
     df = pd.read_csv('data/processed/fullex/' + folder_name + '/' + file_name)
@@ -81,6 +82,34 @@ def corr_test(x,y):
     else:
         return False
 
+def get_dist(x):
+    if 'min_max' in x:
+        return 'min_max'
+    elif 'random_shuffle' in x:
+        return 'random_shuffle'
+    else:
+        return 'pca_trans'
+
+def remove_dunn_min(df):
+    col_list = [i for i in df.columns if 'dunn_min' in i]
+    df = df.drop(columns = col_list)
+    df = pd.melt(df,value_vars =df.columns.to_list())
+    return df
+
+def linearmodel_test(df,var):
+    x = df[[var,'k']]
+    y = df['distance']
+    X2 = sm.add_constant(x)
+    est = sm.OLS(y, X2)
+    est2 = est.fit()
+    pval =True if est2.pvalues[var] < 0.05 else False
+    coef = est2.params[var]
+    return {
+        'metric':var,
+        'pval':pval,
+        'coef':coef
+    }
+
 if __name__ == '__main__':
 
     null_results = pd.read_csv('data/processed/fullex/null_results.csv')
@@ -142,7 +171,7 @@ if __name__ == '__main__':
     g.savefig('graphs/test_clusters_pca.png')
 
     #experiment 5a
-    df_list = [pd.read_csv('data/processed/fullex/k_means_skew_test/cluster_n-' + str(i) + '.csv',index_col=0) for i in [2, 4, 5]]
+    df_list = [pd.read_csv('data/processed/fullex/k_means_dist_test/cluster_n-' + str(i) + '.csv',index_col=0) for i in [2, 4, 5]]
     skew_dicts = [{j:[skew(i[j]),kurtosis(i[j])] for j in i.columns.tolist()} for i in df_list]
     for ind,i in enumerate(skew_dicts):
         if ind == 0:
@@ -151,13 +180,67 @@ if __name__ == '__main__':
             new_skew.update(i)
 
     skew_df = pd.DataFrame(new_skew,index = ['skew','kurtosis']).T.reset_index()
-
+    skew_df['k'] = skew_df['index'].apply(lambda x: int(re.sub('_.*','',x)))
+    skew_df['method'] = skew_df['index'].apply(lambda x:re.sub('\d_[a-z]*_[a-z]*_','',x))
+    skew_df['distribution'] = skew_df['index'].apply(get_dist)
+    dunn_min = skew_df[skew_df['method'] == 'dunn_min']
+    skew_df = skew_df[skew_df['method'] != 'dunn_min']
+    skew_df = skew_df.drop(columns = 'index')
+    kurt_df = skew_df.drop(columns='skew')
+    skew_df = skew_df.drop(columns = 'kurtosis')
+    kurt_df = kurt_df.pivot(index = ['k','distribution'],columns = 'method',values = 'kurtosis').reset_index()
+    skew_df = skew_df.pivot(index=['k', 'distribution'], columns='method', values='skew').reset_index()
+    kurt_df.to_csv('data/processed/tables/kurt.csv')
+    skew_df.to_csv('data/processed/tables/skew.csv')
+    new_df_list = [remove_dunn_min(i) for i in df_list]
+    full_df = pd.concat(new_df_list)
+    full_df['k'] = full_df['variable'].apply(lambda x: int(re.sub('_.*','',x)))
+    full_df['method'] = full_df['variable'].apply(lambda x:re.sub('\d_[a-z]*_[a-z]*_','',x))
+    full_df['distribution'] = full_df['variable'].apply(get_dist)
+    full_df = full_df.drop(columns='variable')
+    g = sns.FacetGrid(
+        full_df,
+        col='distribution',
+        row='method',
+        hue='k',
+        sharey=False, sharex=False,margin_titles=True,palette=pallate)
+    g.map(sns.kdeplot, 'value')
+    g.set_titles(col_template="{col_name}", row_template="{row_name}")
+    g.set(yticks=[],xticks=[])
+    g.set_xlabels('')
+    g.add_legend()
+    g.tight_layout()
+    g.fig.subplots_adjust(wspace=0.1, hspace=0.1, bottom=0.1)
+    plt.show()
+    g.savefig('graphs/distributions.png')
 
     #experiment 5b
-    df_list = [pd.read_csv('data/processed/fullex/k_means_dist_test/cluster_n-' + str(i) + '.csv') for i in [2,4,5]]
-    cvi_list = df_list[0].columns.tolist()
-    cvi_list = [i for i in cvi_list if i not in ['dist','Unnamed: 0']]
-    corr_dict = [{j:corr_test(i[j],i['dist'])for j in cvi_list} for i in df_list]
-    corr_df = pd.DataFrame(corr_dict)
-    corr_df['cluster_number'] = [2,4,5]
-    corr_df = corr_df[['cluster_number']+cvi_list]
+    file_list = os.listdir('data/processed/fullex/size_test')
+    df_list = [pd.read_csv('data/processed/fullex/size_test/' +i ).drop(columns = ['Unnamed: 0','mult']) for i in file_list]
+    size_df = pd.concat(df_list)
+    gauss_df = size_df[size_df['dist']=='gauss']
+    uniform_df = size_df[size_df['dist']=='uniform']
+    col_list = [i for i in gauss_df.columns if i not in ['k', 'dist', 'distance']]
+    gauss_res = pd.DataFrame([linearmodel_test(gauss_df,i) for i in col_list])
+    uniform_res = pd.DataFrame([linearmodel_test(uniform_df,i) for i in col_list])
+    dunn_min_size = pd.concat([gauss_res[gauss_res['metric'] == 'dunn_min'],uniform_res[uniform_res['metric'] == 'dunn_min']])
+    gauss_res = gauss_res[gauss_res['metric'] != 'dunn_min']
+    uniform_res = uniform_res[uniform_res['metric'] != 'dunn_min']
+    gauss_res.to_csv('data/processed/tables/size_gauss.csv')
+    uniform_res.to_csv('data/processed/tables/size_uniform.csv')
+
+    # experiemnt 7 dunn
+    null = pd.read_csv('data/processed/fullex/dunn_results/no_clusters.csv')
+    null_res = [1 if i <0.05 else 0 for i in null['res']]
+    null_res = sum(null_res)/len(null_res)
+
+
+    df = gauss_df
+    var = 'norm_gamma'
+    x = df[[var,'k']]
+    y = df['distance']
+    X2 = sm.add_constant(x)
+    est = sm.OLS(y, X2)
+    est2 = est.fit()
+    pval =True if est2.pvalues[var] < 0.05 else False
+    coef = est2.params[var]
