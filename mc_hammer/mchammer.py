@@ -20,18 +20,20 @@ class mchammer():
         if q_methods == 'all':
             q_methods = ['huberts_gamma', 'norm_gamma', 'sillhouette_euclidean','sillhouette_cosine', 'CH', 'DB',
                          'dunn','S_Dbw','SD_score','IGP','BWC','CVNN','dunn_min']
+        if isinstance(q_methods,str):
+            q_methods = [q_methods]
         if cluster_method == 'K_Means':
             labels = [k_means(i,k) for i in self._null_dists]
         if cluster_method == 'DBSCAN':
             labels = [dbscan(i, eps,min_samples) for i in self._null_dists]
         if cluster_method == 'spectral_clustering':
             labels = [spectral_clustering(i, k) for i in self._null_dists]
-
+        self.x_labels = labels[-1]
  #       results_dict = {k:hypothesis_test(v,k) for k,v in q_dict.items()}
         q_dict = {}
         for i in q_methods:
             res = []
-            if i in ['BWC','dunn']:
+            if i in ['BWC','dunn','dunn_min']:
                 for j in range(len(labels)):
                     res_small = eval(i + '(self._null_dists[' + str(j) + '],labels[' + str(j) + '][0],labels[' + str(j) + '][1])')
                     res.append(res_small)
