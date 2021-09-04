@@ -351,3 +351,19 @@ if __name__ == '__main__':
     plt.show()
     g_g.savefig('graphs/dunn_size.png')
 
+    # clustEHR results
+
+    clus_res = pd.read_csv('data/processed/fullex/clustEHR_res/results.csv').drop(columns = 'Unnamed: 0')
+    val_vars = ['sillhouette_euclidean', 'CH', 'DB','BWC']
+    id_vars = [i for i in clus_res.columns if i not in val_vars]
+    clust = pd.melt(clus_res,id_vars,val_vars)
+    g_g = sns.lmplot(
+        data=clust,
+        x='value',
+        y='anova_count',
+        hue='variable',
+        col='n',
+        sharey=False,
+        scatter_kws={'alpha': 0.2, 'linewidth': 0}
+    )
+    plt.show()
