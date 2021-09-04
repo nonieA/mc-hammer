@@ -22,13 +22,16 @@ def df_edit(folder_name,file_name):
     df['seperation'] = sep
     return df
 
-def change_cvi(x):
+def change_cvi(x,space=False):
     if x == 'SD_score':
         return 'SD'
     elif x == 'S_Dbw':
         return x
     else:
-        return re.sub('_','\\n',x)
+        if space:
+            return re.sub('_', ' ', x)
+        else:
+            return re.sub('_','\\n',x)
 
 def multi_k_df(folder_name):
     file_list = os.listdir('data/processed/fullex/' + folder_name)
@@ -198,6 +201,8 @@ if __name__ == '__main__':
     full_df['method'] = full_df['variable'].apply(lambda x:re.sub('\d_[a-z]*_[a-z]*_','',x))
     full_df['distribution'] = full_df['variable'].apply(get_dist)
     full_df = full_df.drop(columns='variable')
+    full_df['distribution'] = full_df['distribution'].apply(change_cvi,space=True)
+    full_df['method'] = full_df['method'].apply(change_cvi, space=True)
     g = sns.FacetGrid(
         full_df,
         col='distribution',
@@ -228,19 +233,121 @@ if __name__ == '__main__':
     uniform_res = uniform_res[uniform_res['metric'] != 'dunn_min']
     gauss_res.to_csv('data/processed/tables/size_gauss.csv')
     uniform_res.to_csv('data/processed/tables/size_uniform.csv')
+    gauss_df = gauss_df.drop(columns=['dunn_min','dist'])
+    id_cols = ['k','distance']
+    val_cols = [i for i in gauss_df.columns if i not in id_cols]
+    gauss_df =pd.melt(gauss_df,id_vars=id_cols,value_vars=val_cols)
+    gauss_df['variable'] = gauss_df['variable'].apply(change_cvi,space=True)
+    uniform_df = uniform_df.drop(columns=['dunn_min','dist'])
+    uniform_df = pd.melt(uniform_df,id_vars=id_cols,value_vars=val_cols)
+    uniform_df['variable'] = uniform_df['variable'].apply(change_cvi,space=True)
+    val_cols = [change_cvi(i,True) for i in val_cols]
+    g_g = sns.lmplot(
+        data=gauss_df,
+        x='distance',
+        y='value',
+        col='variable',
+        hue='k',
+        col_wrap=3,
+        sharey=False,
+        palette = pallate,
+        scatter_kws={'alpha':0.2,'linewidth':0}
+    )
+    axes = g_g.axes
+    for idx,i in enumerate(val_cols):
+        min_val = min(gauss_df['value'][gauss_df['variable']==i])*0.9
+        max_val = max(gauss_df['value'][gauss_df['variable'] == i]) * 1.1
+        axes[idx].set_ylim(min_val,max_val)
+    g_g.set(xticks=[])
+    g_g.set_titles(col_template="{col_name}")
+    plt.show()
+    g_g.savefig('graphs/size_gauss.png')
+
+    g_u = sns.lmplot(
+        data=uniform_df,
+        x='distance',
+        y='value',
+        col='variable',
+        hue='k',
+        col_wrap=3,
+        sharey=False,
+        palette = pallate,
+        scatter_kws={'alpha':0.2,'linewidth':0}
+    )
+    axes = g_u.axes
+    for idx,i in enumerate(val_cols):
+        min_val = min(uniform_df['value'][uniform_df['variable']==i])*0.9
+        max_val = max(uniform_df['value'][uniform_df['variable'] == i]) * 1.1
+        axes[idx].set_ylim(min_val,max_val)
+    g_u.set(xticks=[])
+    g_u.set_titles(col_template="{col_name}")
+    plt.show()
+    g_u.savefig('graphs/size_uniform.png')
 
     # experiemnt 7 dunn
     null = pd.read_csv('data/processed/fullex/dunn_results/no_clusters.csv')
     null_res = [1 if i <0.05 else 0 for i in null['res']]
     null_res = sum(null_res)/len(null_res)
+    clusters = pd.read_csv('data/processed/fullex/dunn_results/clusters.csv').drop(columns='Unnamed: 0')
+    clusters = clusters[clusters['k'] == 2].drop(columns = 'k')
+    clusters['Cluster Condition'] = clusters.apply(lambda x: 'noise: '+str(x[1]) +'\nseperation: '+str(x[2]),axis =1)
+    clusters = clusters.drop(columns = ['noise','sep'])
+    clusters.loc[len(clusters)] = [null_res,'no clusters']
+    clusters['results'] = clusters['results'] * 100
+    pal2 = {i:'#197278' if i =='no clusters' else '#541388' for i in clusters['Cluster Condition']}
+    sns.set_theme()
+    g = sns.barplot(data=clusters,x='Cluster Condition',y='results',palette=pal2)
+    g.set(ylabel = '% of times clusters found')
+    g.axhline(5,color = 'r',linestyle = '--')
+    plt.xticks(rotation=90)
+    plt.tight_layout()
+    plt.savefig('graphs/dunn_res.png')
+    plt.show()
 
+    dunn_min_size['metric'] = dunn_min_size['metric'].apply(change_cvi,space=True)
+    dunn_min_size.to_csv('data/processed/tables/dunn_size.csv')
+    dunn_min = dunn_min.drop(columns=['index','method'])
+    dunn_min['distribution'] = dunn_min['distribution'].apply(change_cvi,space=True)
+    dunn_min.to_csv('data/processed/tables/dunn_skew.csv')
+    df_list = [pd.read_csv('data/processed/fullex/k_means_dist_test/cluster_n-' + str(i) + '.csv', index_col=0) for i in
+               [2, 4, 5]]
+    dunn_skew = pd.concat(df_list)
+    drop_cols = [i for i in dunn_skew.columns if 'dunn_min' not in i]
+    dunn_skew = dunn_skew.drop(columns =drop_cols)
+    dunn_skew = pd.melt(dunn_skew,value_vars =dunn_skew.columns.to_list())
+    dunn_skew['k'] = dunn_skew['variable'].apply(lambda x: int(re.sub('_.*', '', x)))
+    dunn_skew['distribution'] = dunn_skew['variable'].apply(get_dist)
+    dunn_skew = dunn_skew.drop(columns='variable')
+    dunn_skew['distribution'] = dunn_skew['distribution'].apply(change_cvi,space=True)
+    sns.set_style('white')
+    g = sns.FacetGrid(
+        dunn_skew,
+        col='distribution',
+        hue='k',
+        sharey=False, sharex=False,margin_titles=True,palette=pallate)
+    g.map(sns.kdeplot, 'value')
+    g.set_titles(col_template="{col_name}")
+    g.set(yticks=[],xticks=[])
+    g.set_xlabels('')
+    g.add_legend()
+    g.tight_layout()
+    g.fig.subplots_adjust(wspace=0.1, hspace=0.1, bottom=0.1)
+    plt.show()
+    g.savefig('graphs/dunn_distributions.png')
 
-    df = gauss_df
-    var = 'norm_gamma'
-    x = df[[var,'k']]
-    y = df['distance']
-    X2 = sm.add_constant(x)
-    est = sm.OLS(y, X2)
-    est2 = est.fit()
-    pval =True if est2.pvalues[var] < 0.05 else False
-    coef = est2.params[var]
+    g_g = sns.lmplot(
+        data=size_df,
+        x='distance',
+        y='dunn_min',
+        col='dist',
+        hue='k',
+        sharey=False,
+        palette=pallate,
+        scatter_kws={'alpha': 0.2, 'linewidth': 0}
+    )
+
+    g_g.set(xticks=[])
+    g_g.set_titles(col_template="{col_name}")
+    plt.show()
+    g_g.savefig('graphs/dunn_size.png')
+
