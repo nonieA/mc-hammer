@@ -4,7 +4,7 @@ import seaborn as sns
 import re
 import os
 import numpy as np
-from scipy.stats import spearmanr, skew, kurtosis
+from scipy.stats import spearmanr, skew, kurtosis, ttest_ind
 import statsmodels.api as sm
 
 def df_edit(folder_name,file_name):
@@ -113,6 +113,11 @@ def linearmodel_test(df,var):
         'coef':coef
     }
 
+def change_true(x):
+    x2 = re.sub('\[','',x)
+    x2 = re.sub('\]','',x2)
+    return float(x2)
+
 if __name__ == '__main__':
 
     null_results = pd.read_csv('data/processed/fullex/null_results.csv')
@@ -161,6 +166,7 @@ if __name__ == '__main__':
     #experiment 3 can idendify cluster number
     folder_name = 'k_means_sens_test'
     full_df = multi_k_df(folder_name)
+    full_df = full_df[full_df['CVI'] != 'dunn\nmin']
     g = heatmap(full_df)
     plt.show()
     g.savefig('graphs/test_clusters_number.png')
@@ -351,19 +357,105 @@ if __name__ == '__main__':
     plt.show()
     g_g.savefig('graphs/dunn_size.png')
 
+    # real results
+    true_res = pd.read_csv('data/processed/tables/true_clusters.csv').drop(columns = 'Unnamed: 0')
+    true_dict = {re.sub('_',' ',i):[True if change_true(j) < 0.05 else False for j in true_res[i].tolist()] for i in true_res.columns}
+    true_out  = pd.DataFrame(true_dict)
+    true_out.to_csv('data/processed/tables/true_real_processed.csv')
     # clustEHR results
 
     clus_res = pd.read_csv('data/processed/fullex/clustEHR_res/results.csv').drop(columns = 'Unnamed: 0')
+
     val_vars = ['sillhouette_euclidean', 'CH', 'DB','BWC']
     id_vars = [i for i in clus_res.columns if i not in val_vars]
     clust = pd.melt(clus_res,id_vars,val_vars)
+    clust['anova_count'] = clust['anova_count']*100
+    clust = clust.rename(columns ={
+        'anova_count':'% of significant outcomes',
+        'variable':'metric',
+        'value':'p value'})
+    clust['metric'] = clust['metric'].apply(change_cvi)
+    pal3 = sns.color_palette(['#D90368','#197278','#541388','#F18805'])
+    sns.set_style('white')
     g_g = sns.lmplot(
         data=clust,
-        x='value',
-        y='anova_count',
-        hue='variable',
-        col='n',
+        x='p value',
+        y='% of significant outcomes',
+        hue='metric',
         sharey=False,
-        scatter_kws={'alpha': 0.2, 'linewidth': 0}
+        palette=pal3,
+        scatter_kws={'alpha': 0.3, 'linewidth': 0}
     )
     plt.show()
+    g_g.savefig('graphs/anova_p.png')
+
+    drop_cols = [i for i in clust.columns if 'sig' in i]
+    clust_2 = clust.drop(columns = drop_cols + ['n'])
+    id_cols = ['metric','p value']
+    val_cols = [i for i in clust_2.columns if i not in id_cols]
+    clust_3 = pd.melt(clust_2,id_vars = id_cols,value_vars = val_cols,value_name='mean mean difference')
+    clust_3['variable'] = clust_3['variable'].apply(lambda x: re.sub('_R.*','',x))
+    g_2 = sns.lmplot(
+        data=clust_3,
+        x='p value',
+        y='mean mean difference',
+        hue='metric',
+        col = 'variable',
+        col_wrap = 5,
+        sharey=False,
+        palette=pal3,
+        scatter_kws={'alpha': 0.3, 'linewidth': 0}
+    )
+    axes = g_2.axes
+    var_list = clust_3['variable'].unique().tolist()
+    for idx,i in enumerate(var_list):
+        min_val = min(clust_3['mean mean difference'][clust_3['variable']==i])*0.9
+        max_val = max(clust_3['mean mean difference'][clust_3['variable']==i]) * 1.1
+        axes[idx].set_ylim(min_val,max_val)
+    g_2.set(xticks=[])
+    g_2.set_titles(col_template="{col_name}")
+    plt.show()
+    g_2.savefig('graphs/meanmeanmean.png')
+
+    clust['clusters'] = clust['p value'].apply(lambda x: 'clusters' if x < 0.05 else 'no clusters')
+
+    sns.set_theme()
+    c = sns.barplot(
+        x = 'clusters',
+        y='% of significant outcomes',
+        hue = 'metric',
+        data=clust,
+        palette=pal3
+    )
+
+    plt.legend(bbox_to_anchor=(1.01, 1),
+               borderaxespad=0)
+    plt.tight_layout()
+    plt.savefig('graphs/clust_bars.png')
+    plt.show()
+
+    p_list = []
+    for i in ['sillhouette_euclidean', 'CH', 'DB', 'BWC',]:
+        x = clus_res[['n', i]]
+        y = clus_res['anova_count']
+        X2 = sm.add_constant(x)
+        est = sm.OLS(y, X2)
+        est2 = est.fit()
+        pval =True if est2.pvalues['n'] < 0.05 else False
+        coef = est2.params['n']
+        res_dict = {'var':i,'pval':pval,'coef':coef}
+        p_list.append(res_dict)
+    p_res = pd.DataFrame(p_list)
+
+    t_list = []
+    for i in ['sillhouette_euclidean', 'CH', 'DB', 'BWC',]:
+        x = clus_res[clus_res[i] < 0.05]['anova_count']
+        y = clus_res[clus_res[i] >= 0.05]['anova_count']
+        ttest = ttest_ind(x,y,equal_var=False)
+        mean_dif = (np.mean(x) - np.mean(y))*100
+        res = {'var':i,'pval':ttest.pvalue,'mean_dif':mean_dif}
+        t_list.append(res)
+    t_df = pd.DataFrame(t_list)
+    t_df['bonferroni'] = round(t_df['pval'] /len(t_df),3)
+    t_df['significant'] = t_df['bonferroni'].apply(lambda x: True if x < 0.05 else False)
+    t_df.to_csv('data/processed/tables/cluster_res.csv')
