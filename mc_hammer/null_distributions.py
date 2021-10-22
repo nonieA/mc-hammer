@@ -28,3 +28,7 @@ def pca_trans(arr,seed):
         gaus_arr = np.vstack([gaus_arr,add])
     return(np.dot(gaus_arr.T,eig))
 
+def min_max2(arr,seed):
+    np.random.seed(seed)
+    new_arr = [list(np.random.uniform(min(i),max(i),len(arr))) for i in arr.T]
+    return np.array(new_arr).T

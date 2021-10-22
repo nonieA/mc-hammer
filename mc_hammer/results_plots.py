@@ -6,6 +6,7 @@ import os
 import numpy as np
 from scipy.stats import spearmanr, skew, kurtosis, ttest_ind
 import statsmodels.api as sm
+from sklearn.preprocessing import StandardScaler
 
 def df_edit(folder_name,file_name):
     df = pd.read_csv('data/processed/fullex/' + folder_name + '/' + file_name)
@@ -459,3 +460,27 @@ if __name__ == '__main__':
     t_df['bonferroni'] = round(t_df['pval'] /len(t_df),3)
     t_df['significant'] = t_df['bonferroni'].apply(lambda x: True if x < 0.05 else False)
     t_df.to_csv('data/processed/tables/cluster_res.csv')
+
+    mm_dif_cols = [i for i in clus_res.columns if 'meandif' in i]
+    mm_dif = clus_res[mm_dif_cols]
+    mm_dif = StandardScaler().fit_transform(mm_dif)
+    mm_dif = pd.DataFrame(mm_dif,columns=mm_dif_cols)
+    mm_dif = pd.concat([clus_res[['sillhouette_euclidean', 'CH', 'DB', 'BWC']],mm_dif],axis=1)
+    mm_dif = pd.melt(mm_dif,['sillhouette_euclidean', 'CH', 'DB', 'BWC'],mm_dif_cols,value_name='mean mean difference')
+    mm_dif = pd.melt(mm_dif, 'mean mean difference',['sillhouette_euclidean', 'CH', 'DB', 'BWC'],value_name='p_val')
+    mm_dif['clusters'] = mm_dif['p_val'].apply(lambda x: 'clusters' if x < 0.05 else 'no clusters')
+    mm_dif = mm_dif.rename(columns ={'variable':'metric'})
+    sns.set_theme()
+    c = sns.barplot(
+        x = 'clusters',
+        y='mean mean difference',
+        hue = 'metric',
+        data=mm_dif,
+        palette=pal3
+    )
+
+    plt.legend(bbox_to_anchor=(1.01, 1),
+               borderaxespad=0)
+    plt.tight_layout()
+    #plt.savefig('graphs/clust_bars.png')
+    plt.show()

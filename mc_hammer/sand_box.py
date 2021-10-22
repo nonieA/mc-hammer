@@ -2,6 +2,9 @@ import pandas as pd
 import json
 import os
 import re
+from sklearn.decomposition import PCA, KernelPCA
+from sklearn.datasets import make_circles
+
 
 breast_cancer = pd.read_csv('data/raw/breastcancerdata.csv')
 breast_cancer = breast_cancer.drop(columns = ['id','Unnamed: 32'])
@@ -58,3 +61,6 @@ yeast = [re.sub(' +',',',i) for i in yeast]
 yeast_names = ['ID','mcg','gvh','alm','mit','erl','pox','vac','nuc','Y']
 yeast_df = to_df(yeast,yeast_names,',',True)
 yeast_df.to_csv('data/raw/real_data_sets/yeast.csv',index=False)
+
+
+circles = make_circles(n_samples=200,)
