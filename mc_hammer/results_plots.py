@@ -4,7 +4,9 @@ import seaborn as sns
 import re
 import os
 import numpy as np
-from scipy.stats import spearmanr, skew, kurtosis
+from scipy.stats import spearmanr, skew, kurtosis, ttest_ind
+import statsmodels.api as sm
+from sklearn.preprocessing import StandardScaler
 
 def df_edit(folder_name,file_name):
     df = pd.read_csv('data/processed/fullex/' + folder_name + '/' + file_name)
@@ -21,13 +23,16 @@ def df_edit(folder_name,file_name):
     df['seperation'] = sep
     return df
 
-def change_cvi(x):
+def change_cvi(x,space=False):
     if x == 'SD_score':
         return 'SD'
     elif x == 'S_Dbw':
         return x
     else:
-        return re.sub('_','\\n',x)
+        if space:
+            return re.sub('_', ' ', x)
+        else:
+            return re.sub('_','\\n',x)
 
 def multi_k_df(folder_name):
     file_list = os.listdir('data/processed/fullex/' + folder_name)
@@ -81,6 +86,39 @@ def corr_test(x,y):
     else:
         return False
 
+def get_dist(x):
+    if 'min_max' in x:
+        return 'min_max'
+    elif 'random_shuffle' in x:
+        return 'random_shuffle'
+    else:
+        return 'pca_trans'
+
+def remove_dunn_min(df):
+    col_list = [i for i in df.columns if 'dunn_min' in i]
+    df = df.drop(columns = col_list)
+    df = pd.melt(df,value_vars =df.columns.to_list())
+    return df
+
+def linearmodel_test(df,var):
+    x = df[[var,'k']]
+    y = df['distance']
+    X2 = sm.add_constant(x)
+    est = sm.OLS(y, X2)
+    est2 = est.fit()
+    pval =True if est2.pvalues[var] < 0.05 else False
+    coef = est2.params[var]
+    return {
+        'metric':var,
+        'pval':pval,
+        'coef':coef
+    }
+
+def change_true(x):
+    x2 = re.sub('\[','',x)
+    x2 = re.sub('\]','',x2)
+    return float(x2)
+
 if __name__ == '__main__':
 
     null_results = pd.read_csv('data/processed/fullex/null_results.csv')
@@ -129,6 +167,7 @@ if __name__ == '__main__':
     #experiment 3 can idendify cluster number
     folder_name = 'k_means_sens_test'
     full_df = multi_k_df(folder_name)
+    full_df = full_df[full_df['CVI'] != 'dunn\nmin']
     g = heatmap(full_df)
     plt.show()
     g.savefig('graphs/test_clusters_number.png')
@@ -142,7 +181,7 @@ if __name__ == '__main__':
     g.savefig('graphs/test_clusters_pca.png')
 
     #experiment 5a
-    df_list = [pd.read_csv('data/processed/fullex/k_means_skew_test/cluster_n-' + str(i) + '.csv',index_col=0) for i in [2, 4, 5]]
+    df_list = [pd.read_csv('data/processed/fullex/k_means_dist_test/cluster_n-' + str(i) + '.csv',index_col=0) for i in [2, 4, 5]]
     skew_dicts = [{j:[skew(i[j]),kurtosis(i[j])] for j in i.columns.tolist()} for i in df_list]
     for ind,i in enumerate(skew_dicts):
         if ind == 0:
@@ -151,13 +190,297 @@ if __name__ == '__main__':
             new_skew.update(i)
 
     skew_df = pd.DataFrame(new_skew,index = ['skew','kurtosis']).T.reset_index()
-
+    skew_df['k'] = skew_df['index'].apply(lambda x: int(re.sub('_.*','',x)))
+    skew_df['method'] = skew_df['index'].apply(lambda x:re.sub('\d_[a-z]*_[a-z]*_','',x))
+    skew_df['distribution'] = skew_df['index'].apply(get_dist)
+    dunn_min = skew_df[skew_df['method'] == 'dunn_min']
+    skew_df = skew_df[skew_df['method'] != 'dunn_min']
+    skew_df = skew_df.drop(columns = 'index')
+    kurt_df = skew_df.drop(columns='skew')
+    skew_df = skew_df.drop(columns = 'kurtosis')
+    kurt_df = kurt_df.pivot(index = ['k','distribution'],columns = 'method',values = 'kurtosis').reset_index()
+    skew_df = skew_df.pivot(index=['k', 'distribution'], columns='method', values='skew').reset_index()
+    kurt_df.to_csv('data/processed/tables/kurt.csv')
+    skew_df.to_csv('data/processed/tables/skew.csv')
+    new_df_list = [remove_dunn_min(i) for i in df_list]
+    full_df = pd.concat(new_df_list)
+    full_df['k'] = full_df['variable'].apply(lambda x: int(re.sub('_.*','',x)))
+    full_df['method'] = full_df['variable'].apply(lambda x:re.sub('\d_[a-z]*_[a-z]*_','',x))
+    full_df['distribution'] = full_df['variable'].apply(get_dist)
+    full_df = full_df.drop(columns='variable')
+    full_df['distribution'] = full_df['distribution'].apply(change_cvi,space=True)
+    full_df['method'] = full_df['method'].apply(change_cvi, space=True)
+    g = sns.FacetGrid(
+        full_df,
+        col='distribution',
+        row='method',
+        hue='k',
+        sharey=False, sharex=False,margin_titles=True,palette=pallate)
+    g.map(sns.kdeplot, 'value')
+    g.set_titles(col_template="{col_name}", row_template="{row_name}")
+    g.set(yticks=[],xticks=[])
+    g.set_xlabels('')
+    g.add_legend()
+    g.tight_layout()
+    g.fig.subplots_adjust(wspace=0.1, hspace=0.1, bottom=0.1)
+    plt.show()
+    g.savefig('graphs/distributions.png')
 
     #experiment 5b
-    df_list = [pd.read_csv('data/processed/fullex/k_means_dist_test/cluster_n-' + str(i) + '.csv') for i in [2,4,5]]
-    cvi_list = df_list[0].columns.tolist()
-    cvi_list = [i for i in cvi_list if i not in ['dist','Unnamed: 0']]
-    corr_dict = [{j:corr_test(i[j],i['dist'])for j in cvi_list} for i in df_list]
-    corr_df = pd.DataFrame(corr_dict)
-    corr_df['cluster_number'] = [2,4,5]
-    corr_df = corr_df[['cluster_number']+cvi_list]
+    file_list = os.listdir('data/processed/fullex/size_test')
+    df_list = [pd.read_csv('data/processed/fullex/size_test/' +i ).drop(columns = ['Unnamed: 0','mult']) for i in file_list]
+    size_df = pd.concat(df_list)
+    gauss_df = size_df[size_df['dist']=='gauss']
+    uniform_df = size_df[size_df['dist']=='uniform']
+    col_list = [i for i in gauss_df.columns if i not in ['k', 'dist', 'distance']]
+    gauss_res = pd.DataFrame([linearmodel_test(gauss_df,i) for i in col_list])
+    uniform_res = pd.DataFrame([linearmodel_test(uniform_df,i) for i in col_list])
+    dunn_min_size = pd.concat([gauss_res[gauss_res['metric'] == 'dunn_min'],uniform_res[uniform_res['metric'] == 'dunn_min']])
+    gauss_res = gauss_res[gauss_res['metric'] != 'dunn_min']
+    uniform_res = uniform_res[uniform_res['metric'] != 'dunn_min']
+    gauss_res.to_csv('data/processed/tables/size_gauss.csv')
+    uniform_res.to_csv('data/processed/tables/size_uniform.csv')
+    gauss_df = gauss_df.drop(columns=['dunn_min','dist'])
+    id_cols = ['k','distance']
+    val_cols = [i for i in gauss_df.columns if i not in id_cols]
+    gauss_df =pd.melt(gauss_df,id_vars=id_cols,value_vars=val_cols)
+    gauss_df['variable'] = gauss_df['variable'].apply(change_cvi,space=True)
+    uniform_df = uniform_df.drop(columns=['dunn_min','dist'])
+    uniform_df = pd.melt(uniform_df,id_vars=id_cols,value_vars=val_cols)
+    uniform_df['variable'] = uniform_df['variable'].apply(change_cvi,space=True)
+    val_cols = [change_cvi(i,True) for i in val_cols]
+    g_g = sns.lmplot(
+        data=gauss_df,
+        x='distance',
+        y='value',
+        col='variable',
+        hue='k',
+        col_wrap=3,
+        sharey=False,
+        palette = pallate,
+        scatter_kws={'alpha':0.2,'linewidth':0}
+    )
+    axes = g_g.axes
+    for idx,i in enumerate(val_cols):
+        min_val = min(gauss_df['value'][gauss_df['variable']==i])*0.9
+        max_val = max(gauss_df['value'][gauss_df['variable'] == i]) * 1.1
+        axes[idx].set_ylim(min_val,max_val)
+    g_g.set(xticks=[])
+    g_g.set_titles(col_template="{col_name}")
+    plt.show()
+    g_g.savefig('graphs/size_gauss.png')
+
+    g_u = sns.lmplot(
+        data=uniform_df,
+        x='distance',
+        y='value',
+        col='variable',
+        hue='k',
+        col_wrap=3,
+        sharey=False,
+        palette = pallate,
+        scatter_kws={'alpha':0.2,'linewidth':0}
+    )
+    axes = g_u.axes
+    for idx,i in enumerate(val_cols):
+        min_val = min(uniform_df['value'][uniform_df['variable']==i])*0.9
+        max_val = max(uniform_df['value'][uniform_df['variable'] == i]) * 1.1
+        axes[idx].set_ylim(min_val,max_val)
+    g_u.set(xticks=[])
+    g_u.set_titles(col_template="{col_name}")
+    plt.show()
+    g_u.savefig('graphs/size_uniform.png')
+
+    # experiemnt 7 dunn
+    null = pd.read_csv('data/processed/fullex/dunn_results/no_clusters.csv')
+    null_res = [1 if i <0.05 else 0 for i in null['res']]
+    null_res = sum(null_res)/len(null_res)
+    clusters = pd.read_csv('data/processed/fullex/dunn_results/clusters.csv').drop(columns='Unnamed: 0')
+    clusters = clusters[clusters['k'] == 2].drop(columns = 'k')
+    clusters['Cluster Condition'] = clusters.apply(lambda x: 'noise: '+str(x[1]) +'\nseperation: '+str(x[2]),axis =1)
+    clusters = clusters.drop(columns = ['noise','sep'])
+    clusters.loc[len(clusters)] = [null_res,'no clusters']
+    clusters['results'] = clusters['results'] * 100
+    pal2 = {i:'#197278' if i =='no clusters' else '#541388' for i in clusters['Cluster Condition']}
+    sns.set_theme()
+    g = sns.barplot(data=clusters,x='Cluster Condition',y='results',palette=pal2)
+    g.set(ylabel = '% of times clusters found')
+    g.axhline(5,color = 'r',linestyle = '--')
+    plt.xticks(rotation=90)
+    plt.tight_layout()
+    plt.savefig('graphs/dunn_res.png')
+    plt.show()
+
+    dunn_min_size['metric'] = dunn_min_size['metric'].apply(change_cvi,space=True)
+    dunn_min_size.to_csv('data/processed/tables/dunn_size.csv')
+    dunn_min = dunn_min.drop(columns=['index','method'])
+    dunn_min['distribution'] = dunn_min['distribution'].apply(change_cvi,space=True)
+    dunn_min.to_csv('data/processed/tables/dunn_skew.csv')
+    df_list = [pd.read_csv('data/processed/fullex/k_means_dist_test/cluster_n-' + str(i) + '.csv', index_col=0) for i in
+               [2, 4, 5]]
+    dunn_skew = pd.concat(df_list)
+    drop_cols = [i for i in dunn_skew.columns if 'dunn_min' not in i]
+    dunn_skew = dunn_skew.drop(columns =drop_cols)
+    dunn_skew = pd.melt(dunn_skew,value_vars =dunn_skew.columns.to_list())
+    dunn_skew['k'] = dunn_skew['variable'].apply(lambda x: int(re.sub('_.*', '', x)))
+    dunn_skew['distribution'] = dunn_skew['variable'].apply(get_dist)
+    dunn_skew = dunn_skew.drop(columns='variable')
+    dunn_skew['distribution'] = dunn_skew['distribution'].apply(change_cvi,space=True)
+    sns.set_style('white')
+    g = sns.FacetGrid(
+        dunn_skew,
+        col='distribution',
+        hue='k',
+        sharey=False, sharex=False,margin_titles=True,palette=pallate)
+    g.map(sns.kdeplot, 'value')
+    g.set_titles(col_template="{col_name}")
+    g.set(yticks=[],xticks=[])
+    g.set_xlabels('')
+    g.add_legend()
+    g.tight_layout()
+    g.fig.subplots_adjust(wspace=0.1, hspace=0.1, bottom=0.1)
+    plt.show()
+    g.savefig('graphs/dunn_distributions.png')
+
+    g_g = sns.lmplot(
+        data=size_df,
+        x='distance',
+        y='dunn_min',
+        col='dist',
+        hue='k',
+        sharey=False,
+        palette=pallate,
+        scatter_kws={'alpha': 0.2, 'linewidth': 0}
+    )
+
+    g_g.set(xticks=[])
+    g_g.set_titles(col_template="{col_name}")
+    plt.show()
+    g_g.savefig('graphs/dunn_size.png')
+
+    # real results
+    true_res = pd.read_csv('data/processed/tables/true_clusters.csv').drop(columns = 'Unnamed: 0')
+    true_dict = {re.sub('_',' ',i):[True if change_true(j) < 0.05 else False for j in true_res[i].tolist()] for i in true_res.columns}
+    true_out  = pd.DataFrame(true_dict)
+    true_out.to_csv('data/processed/tables/true_real_processed.csv')
+    # clustEHR results
+
+    clus_res = pd.read_csv('data/processed/fullex/clustEHR_res/results.csv').drop(columns = 'Unnamed: 0')
+
+    val_vars = ['sillhouette_euclidean', 'CH', 'DB','BWC']
+    id_vars = [i for i in clus_res.columns if i not in val_vars]
+    clust = pd.melt(clus_res,id_vars,val_vars)
+    clust['anova_count'] = clust['anova_count']*100
+    clust = clust.rename(columns ={
+        'anova_count':'% of significant outcomes',
+        'variable':'metric',
+        'value':'p value'})
+    clust['metric'] = clust['metric'].apply(change_cvi)
+    pal3 = sns.color_palette(['#D90368','#197278','#541388','#F18805'])
+    sns.set_style('white')
+    g_g = sns.lmplot(
+        data=clust,
+        x='p value',
+        y='% of significant outcomes',
+        hue='metric',
+        sharey=False,
+        palette=pal3,
+        scatter_kws={'alpha': 0.3, 'linewidth': 0}
+    )
+    plt.show()
+    g_g.savefig('graphs/anova_p.png')
+
+    drop_cols = [i for i in clust.columns if 'sig' in i]
+    clust_2 = clust.drop(columns = drop_cols + ['n'])
+    id_cols = ['metric','p value']
+    val_cols = [i for i in clust_2.columns if i not in id_cols]
+    clust_3 = pd.melt(clust_2,id_vars = id_cols,value_vars = val_cols,value_name='mean mean difference')
+    clust_3['variable'] = clust_3['variable'].apply(lambda x: re.sub('_R.*','',x))
+    g_2 = sns.lmplot(
+        data=clust_3,
+        x='p value',
+        y='mean mean difference',
+        hue='metric',
+        col = 'variable',
+        col_wrap = 5,
+        sharey=False,
+        palette=pal3,
+        scatter_kws={'alpha': 0.3, 'linewidth': 0}
+    )
+    axes = g_2.axes
+    var_list = clust_3['variable'].unique().tolist()
+    for idx,i in enumerate(var_list):
+        min_val = min(clust_3['mean mean difference'][clust_3['variable']==i])*0.9
+        max_val = max(clust_3['mean mean difference'][clust_3['variable']==i]) * 1.1
+        axes[idx].set_ylim(min_val,max_val)
+    g_2.set(xticks=[])
+    g_2.set_titles(col_template="{col_name}")
+    plt.show()
+    g_2.savefig('graphs/meanmeanmean.png')
+
+    clust['clusters'] = clust['p value'].apply(lambda x: 'clusters' if x < 0.05 else 'no clusters')
+
+    sns.set_theme()
+    c = sns.barplot(
+        x = 'clusters',
+        y='% of significant outcomes',
+        hue = 'metric',
+        data=clust,
+        palette=pal3
+    )
+
+    plt.legend(bbox_to_anchor=(1.01, 1),
+               borderaxespad=0)
+    plt.tight_layout()
+    plt.savefig('graphs/clust_bars.png')
+    plt.show()
+
+    p_list = []
+    for i in ['sillhouette_euclidean', 'CH', 'DB', 'BWC',]:
+        x = clus_res[['n', i]]
+        y = clus_res['anova_count']
+        X2 = sm.add_constant(x)
+        est = sm.OLS(y, X2)
+        est2 = est.fit()
+        pval =True if est2.pvalues['n'] < 0.05 else False
+        coef = est2.params['n']
+        res_dict = {'var':i,'pval':pval,'coef':coef}
+        p_list.append(res_dict)
+    p_res = pd.DataFrame(p_list)
+
+    t_list = []
+    for i in ['sillhouette_euclidean', 'CH', 'DB', 'BWC',]:
+        x = clus_res[clus_res[i] < 0.05]['anova_count']
+        y = clus_res[clus_res[i] >= 0.05]['anova_count']
+        ttest = ttest_ind(x,y,equal_var=False)
+        mean_dif = (np.mean(x) - np.mean(y))*100
+        res = {'var':i,'pval':ttest.pvalue,'mean_dif':mean_dif}
+        t_list.append(res)
+    t_df = pd.DataFrame(t_list)
+    t_df['bonferroni'] = round(t_df['pval'] /len(t_df),3)
+    t_df['significant'] = t_df['bonferroni'].apply(lambda x: True if x < 0.05 else False)
+    t_df.to_csv('data/processed/tables/cluster_res.csv')
+
+    mm_dif_cols = [i for i in clus_res.columns if 'meandif' in i]
+    mm_dif = clus_res[mm_dif_cols]
+    mm_dif = StandardScaler().fit_transform(mm_dif)
+    mm_dif = pd.DataFrame(mm_dif,columns=mm_dif_cols)
+    mm_dif = pd.concat([clus_res[['sillhouette_euclidean', 'CH', 'DB', 'BWC']],mm_dif],axis=1)
+    mm_dif = pd.melt(mm_dif,['sillhouette_euclidean', 'CH', 'DB', 'BWC'],mm_dif_cols,value_name='mean mean difference')
+    mm_dif = pd.melt(mm_dif, 'mean mean difference',['sillhouette_euclidean', 'CH', 'DB', 'BWC'],value_name='p_val')
+    mm_dif['clusters'] = mm_dif['p_val'].apply(lambda x: 'clusters' if x < 0.05 else 'no clusters')
+    mm_dif = mm_dif.rename(columns ={'variable':'metric'})
+    sns.set_theme()
+    c = sns.barplot(
+        x = 'clusters',
+        y='mean mean difference',
+        hue = 'metric',
+        data=mm_dif,
+        palette=pal3
+    )
+
+    plt.legend(bbox_to_anchor=(1.01, 1),
+               borderaxespad=0)
+    plt.tight_layout()
+    #plt.savefig('graphs/clust_bars.png')
+    plt.show()

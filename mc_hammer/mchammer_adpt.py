@@ -1,11 +1,14 @@
 from mc_hammer.null_distributions import pca_trans, random_order, min_max
-from mc_hammer.clustering_algorithms import k_means,dbscan,spectral_clustering
 from mc_hammer.similarity_functions import huberts_gamma, norm_gamma, sillhouette_euclidean,sillhouette_cosine, CH, DB
 from mc_hammer.similarity_functions import dunn,S_Dbw,SD_score,IGP,BWC,CVNN, dunn_min
 from mc_hammer.hypothesis_test import hypothesis_test
 import numpy as np
 
-class mchammer():
+def k_means(x,k,itt):
+    kmeans = KMeans(n_clusters=k,random_state=4,n_init=3,max_iter=).fit(x)
+    return kmeans.labels_, kmeans.cluster_centers_
+
+class mchammer_adpt():
     def __init__(self):
         pass
     def get_null_distributions(self,x,null_method,repeats):
@@ -45,54 +48,3 @@ class mchammer():
         results_dict = {k: hypothesis_test(v, k) for k, v in q_dict.items()}
 
         return results_dict
-
-if __name__ == '__main__':
-    test = np.random.rand(100,3)
-
-
-    mch = mchammer()
-    mch.get_null_distributions(test,'min_max',3)
-    res_q = mch.get_q_scores(cluster_method='K_Means',k =2)
-    seperation = 0.1
-    noise = 0.1
-    k_test = [make_classification(
-        n_samples = 1000,
-        n_features = 10,
-        n_informative = int((10-10*noise)),
-        n_redundant = int(10*noise),
-        n_classes = 4,
-        n_clusters_per_class = 1,
-        class_sep = seperation,
-        random_state = i
-    )[0] for i in range(100)]
-
-    for ind,i in enumerate(k_test):
-        print(ind)
-        mch = mchammer()
-        mch.get_null_distributions(k_test[84],'pca_trans',100)
-        res_q = mch.get_q_scores(cluster_method='K_Means',k =4)
-        print(res_q)
-    x = k_test[84]
-    repeats = 100
-    null_dists = [pca_trans(x, i) for i in range(repeats)]
-    labels = [k_means(i,4) for i in null_dists]
-
-    q_methods = ['huberts_gamma', 'norm_gamma', 'sillhouette_euclidean', 'sillhouette_cosine', 'CH', 'DB',
-                 'dunn', 'S_Dbw', 'SD_score', 'IGP', 'BWC', 'CVNN']
-
-    q_dict = {}
-    for i in q_methods:
-        print(i)
-        res = []
-        if i in ['BWC', 'dunn']:
-            for j in range(len(labels)):
-                print(j)
-                res_small = eval(
-                    i + '(null_dists[' + str(j) + '],labels[' + str(j) + '][0],labels[' + str(j) + '][1])')
-                res.append(res_small)
-        else:
-            for j in range(len(labels)):
-                print(j)
-                res_small = eval(i + '(null_dists[' + str(j) + '],labels[' + str(j) + '][0])')
-                res.append(res_small)
-        q_dict[i] = res

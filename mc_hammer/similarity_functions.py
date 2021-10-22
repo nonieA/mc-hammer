@@ -3,6 +3,7 @@ from sklearn.metrics import silhouette_score, calinski_harabasz_score, davies_bo
 import numpy as np
 from s_dbw import S_Dbw, SD
 from scipy.spatial import distance
+from mc_hammer.cluster_measures import mean_center_dist, dataset_midpoint_dist
 
 def mean_cluster_diam(x, labels,k):
     k_ind = [ind for ind,i in enumerate(labels) if i == k ]
@@ -136,8 +137,8 @@ def CVNN(x,labels):
     comp = np.mean(comp_list)/max(comp_list)
     return sep + comp
 
-if __name__ == '__main__':
-    x = np.random.rand(100,3)
-    km = KMeans(n_clusters = 3).fit(x)
-    labels = km.labels_
-    centers = km.cluster_centers_
+def dunn_min(x,labels,centers):
+    comp = min(mean_center_dist(x,labels,centers))
+    sep = max(dataset_midpoint_dist(x,centers))
+    return sep/comp
+
