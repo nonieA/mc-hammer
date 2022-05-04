@@ -143,18 +143,22 @@ if __name__ == '__main__':
     null_results_long['Null Distributions'] = null_results_long['Null Distributions'].apply(
         lambda x: re.sub('_K_Means','',x))
     null_results_long['CVI'] = null_results_long['CVI'].apply(change_cvi)
+    sns.set_theme()
     pallate = sns.color_palette(['#D90368','#197278','#541388'])
     null_plot = sns.barplot(
         x = 'CVI',
         y='% of times clusters found',
         hue = 'Null Distributions',
+        linewidth=0,
         data=null_results_long,
         palette=pallate
     )
     plt.xticks(rotation=90)
     null_plot.axhline(5,color = 'r',linestyle = '--')
+    plt.tight_layout()
     plt.savefig('graphs/null_dist.png')
     plt.show()
+    null_results_full.to_csv('data/processed/tables/null_results.csv',index =False)
 
     # expeririment 2 can identify clusters
     folder_name = 'k_means_pos_test'
@@ -163,6 +167,9 @@ if __name__ == '__main__':
     plt.show()
     g.savefig('graphs/test_clusters.png')
     plt.show()
+    out_df = full_df.copy()
+    out_df= out_df.pivot_table(index=['noise','seperation','CVI'],columns = 'Null Distributions', values='value').reset_index()
+    out_df.to_csv('data/processed/tables/indent_clusts.csv',index=False)
 
     #experiment 3 can idendify cluster number
     folder_name = 'k_means_sens_test'
@@ -171,8 +178,10 @@ if __name__ == '__main__':
     g = heatmap(full_df)
     plt.show()
     g.savefig('graphs/test_clusters_number.png')
-
-
+    out_df = full_df.copy()
+    out_df = out_df.pivot_table(index=['noise', 'seperation','CVI'], columns='Null Distributions',
+                                values='value').reset_index()
+    out_df.to_csv('data/processed/tables/clust_N.csv', index=False)
     #experiment 4 can idendify cluster number
     folder_name = 'k_means_pca_test'
     full_df = multi_k_df(folder_name)

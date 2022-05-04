@@ -4,7 +4,9 @@ import os
 import re
 from sklearn.decomposition import PCA, KernelPCA
 from sklearn.datasets import make_circles
-
+from mc_hammer.null_distributions import pca_trans, min_max
+import matplotlib.pyplot as plt
+from sklearn.datasets import make_classification
 
 breast_cancer = pd.read_csv('data/raw/breastcancerdata.csv')
 breast_cancer = breast_cancer.drop(columns = ['id','Unnamed: 32'])
@@ -64,3 +66,40 @@ yeast_df.to_csv('data/raw/real_data_sets/yeast.csv',index=False)
 
 
 circles = make_circles(n_samples=200,)
+
+blob_1 = make_classification(
+        n_samples = 100,
+        n_features = 10,
+        n_informative = 5,
+        n_redundant = 5,
+        n_classes = 3,
+        n_clusters_per_class = 1,
+        class_sep = 0.5,
+        random_state = 2
+    )[0]
+
+pca_blob1 = min_max(blob_1,2)
+
+blob_5 =  make_classification(
+        n_samples = 100,
+        n_features = 10,
+        n_informative = 9,
+        n_redundant = 1,
+        n_classes = 3,
+        n_clusters_per_class = 1,
+        class_sep = 0.5,
+        random_state = 2
+    )[0]
+
+pca_blob5 = min_max(blob_5,2)
+
+plt.scatter(blob_1[:,0],blob_1[:,1])
+plt.show()
+plt.scatter(pca_blob1[:,0],pca_blob1[:,1])
+plt.show()
+
+
+plt.scatter(blob_5[:,0],blob_5[:,1])
+plt.show()
+plt.scatter(pca_blob5[:,0],pca_blob5[:,1])
+plt.show()
